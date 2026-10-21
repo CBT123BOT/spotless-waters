@@ -14,40 +14,62 @@
     padding: 20px 16px 40px;
   }
   .container { max-width: 420px; margin: 0 auto; }
-  .header { text-align: center; margin-bottom: 28px; }
+  .header { text-align: center; margin-bottom: 24px; }
   .drop { font-size: 48px; line-height: 1; }
   h1 { font-size: 28px; font-weight: 700; margin-top: 4px; }
   .subtitle { font-size: 16px; opacity: 0.9; margin-top: 2px; }
+
   label { display: block; font-size: 14px; margin-bottom: 6px; opacity: 0.9; }
-  select {
+  select, input[type="number"] {
     width: 100%; padding: 14px; border-radius: 12px; border: none;
-    font-size: 16px; margin-bottom: 24px; background: rgba(255,255,255,0.15);
-    color: white; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='white' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    font-size: 16px; margin-bottom: 16px; background: rgba(255,255,255,0.15);
+    color: white;
+  }
+  select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='white' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 16px center;
   }
   select option { color: #0d47a1; }
-  .buttons { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+  input[type="number"]::placeholder { color: rgba(255,255,255,0.55); }
+
+  .buttons { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
   button {
     background: #39ff14; color: #0a3d0a; border: none; padding: 16px;
     border-radius: 12px; font-size: 17px; font-weight: 700; cursor: pointer;
     box-shadow: 0 4px 12px rgba(57,255,20,0.3);
   }
   button:active { transform: scale(0.98); }
+  button.secondary { background: rgba(255,255,255,0.2); color: white; box-shadow: none; }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+
   .hint {
-    font-size: 13px; text-align: center; opacity: 0.8; line-height: 1.4; margin-bottom: 24px;
+    font-size: 13px; text-align: center; opacity: 0.85; line-height: 1.45;
+    margin-bottom: 20px; padding: 0 8px;
   }
+  .hint strong { color: #39ff14; }
+
   #preview { margin: 16px 0; text-align: center; }
   #preview img, #preview video { max-width: 100%; border-radius: 12px; }
+
   #results {
     background: rgba(255,255,255,0.12); border-radius: 16px; padding: 20px;
     margin-top: 8px; display: none;
   }
-  #results h2 { font-size: 18px; margin-bottom: 12px; }
-  #results ul { list-style: none; }
-  #results li { margin-bottom: 10px; font-size: 15px; line-height: 1.4; }
-  #results li strong { color: #39ff14; }
-  .new-test { margin-top: 24px; }
+  #results h2 { font-size: 18px; margin-bottom: 14px; }
+  .result-item {
+    background: rgba(0,0,0,0.15); border-radius: 12px; padding: 12px 14px;
+    margin-bottom: 10px; font-size: 15px; line-height: 1.4;
+  }
+  .result-item strong { color: #39ff14; }
+  .status-low { color: #ffcc00; }
+  .status-high { color: #ff6b6b; }
+  .status-good { color: #39ff14; }
+  .dosage { margin-top: 6px; font-size: 14px; opacity: 0.95; }
+  .new-test { margin-top: 16px; width: 100%; }
+  .note { font-size: 12px; opacity: 0.7; text-align: center; margin-top: 16px; }
   input[type="file"] { display: none; }
+  #analyzing { display: none; text-align: center; margin: 16px 0; font-size: 15px; }
 </style>
 </head>
 <body>
@@ -59,42 +81,81 @@
   </div>
 
   <label for="brand">Test Strip Brand</label>
-  <select id="brand">
+  <select id="brand" onchange="updateHint()">
     <option value="aquachek">AquaChek</option>
     <option value="taylor">Taylor</option>
     <option value="hth">HTH</option>
     <option value="lamotte">LaMotte</option>
     <option value="clorox">Clorox</option>
-    <option value="other">Other</option>
+    <option value="other">Other (unknown brand)</option>
   </select>
 
+  <label for="gallons">Pool Volume (gallons)</label>
+  <input type="number" id="gallons" placeholder="e.g. 5000 (minimum 2500)" min="2500" step="50">
+
   <div class="buttons">
-    <button onclick="document.getElementById('photo').click()">Take Photo</button>
-    <button onclick="document.getElementById('video').click()">5-Second Video</button>
+    <button id="photoBtn" onclick="document.getElementById('photo').click()">Take Photo</button>
+    <button id="videoBtn" onclick="document.getElementById('video').click()">5-Second Video</button>
   </div>
-  <div class="hint">
-    Photo of the strip next to the color chart, or a 5-second slow-roll video if the full chart won’t fit in one shot. Hold steady in even light.
+
+  <div class="hint" id="hint">
+    A clear photo of the strip next to the color chart works well for known brands. Hold steady in even light.
   </div>
 
   <input type="file" id="photo" accept="image/*" capture="environment" onchange="handleCapture(this, 'image')">
   <input type="file" id="video" accept="video/*" capture="environment" onchange="handleCapture(this, 'video')">
 
+  <div id="analyzing">Analyzing strip…</div>
   <div id="preview"></div>
 
   <div id="results">
     <h2>Recommendations</h2>
-    <ul id="result-list"></ul>
-    <button class="new-test" onclick="resetTest()">New Strip Test</button>
+    <div id="result-list"></div>
+    <button class="new-test secondary" onclick="resetTest()">New Strip Test</button>
+    <div class="note">Demo analysis — real color matching coming in a future update.</div>
   </div>
 </div>
 
 <script>
+function updateHint() {
+  const brand = document.getElementById('brand').value;
+  const hint = document.getElementById('hint');
+  if (brand === 'other') {
+    hint.innerHTML = '<strong>Recommended:</strong> Use the <strong>5-Second Video</strong> and slowly show both the test strip <strong>and the full color chart</strong> in the same frame. Hold steady in even light.';
+  } else {
+    hint.innerHTML = 'A clear photo of the strip next to the color chart works well. Hold steady in even light.';
+  }
+}
+
 function handleCapture(input, type) {
   const file = input.files[0];
   if (!file) return;
+
+  const gallonsInput = document.getElementById('gallons');
+  const gallons = Number(gallonsInput.value);
+  if (!gallons || gallons < 2500) {
+    alert('Please enter your pool volume first (minimum 2,500 gallons) so dosage amounts can be calculated.');
+    gallonsInput.focus();
+    input.value = '';
+    return;
+  }
+
+  const brand = document.getElementById('brand').value;
+  if (brand === 'other' && type === 'image') {
+    const proceed = confirm('For unknown brands, a short video that includes both the strip and the color chart usually gives better results. Continue with photo anyway?');
+    if (!proceed) {
+      input.value = '';
+      return;
+    }
+  }
+
   const preview = document.getElementById('preview');
   preview.innerHTML = '';
   const url = URL.createObjectURL(file);
+
+  document.getElementById('analyzing').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+
   if (type === 'image') {
     const img = document.createElement('img');
     img.src = url;
@@ -107,26 +168,39 @@ function handleCapture(input, type) {
     video.muted = true;
     preview.appendChild(video);
   }
-  // Simulated analysis for prototype
-  showResults();
+
+  // Simulate brief analysis delay
+  setTimeout(() => {
+    document.getElementById('analyzing').style.display = 'none';
+    showResults(gallons);
+  }, 800);
 }
 
-function showResults() {
-  const brand = document.getElementById('brand').value;
+function showResults(gallons) {
   const list = document.getElementById('result-list');
   list.innerHTML = '';
-  // Demo results — replace with real analysis later
+
+  // Demo analysis — replace with real vision later
   const demo = [
-    { param: 'Free Chlorine', status: 'Low (~0.5–1 ppm)', action: 'Add chlorine.', why: 'Keeps water sanitized and prevents algae.' },
-    { param: 'pH', status: 'Slightly high (~7.8)', action: 'Add acid.', why: 'Improves chlorine effectiveness and comfort.' },
-    { param: 'Total Alkalinity', status: 'Good (~100 ppm)', action: 'No action.', why: 'Stable buffering range.' },
-    { param: 'Hardness', status: 'Good (~250 ppm)', action: 'No action.', why: 'Protects surfaces and equipment.' }
+    { param: 'Free Chlorine', status: 'Low (~0.5–1 ppm)', action: 'Add chlorine', why: 'Keeps water sanitized and helps prevent algae.', dosagePer10k: 16, level: 'low' },
+    { param: 'pH', status: 'Slightly high (~7.8)', action: 'Add acid (muriatic or pH Down)', why: 'Improves chlorine effectiveness and comfort.', dosagePer10k: 8, level: 'high' },
+    { param: 'Total Alkalinity', status: 'Good (~100 ppm)', action: 'No action needed', why: 'Stable buffering range.', dosagePer10k: 0, level: 'good' },
+    { param: 'Hardness', status: 'Good (~250 ppm)', action: 'No action needed', why: 'Protects surfaces and equipment.', dosagePer10k: 0, level: 'good' }
   ];
+
   demo.forEach(item => {
-    const li = document.createElement('li');
-    li.innerHTML = `<strong>${item.param}</strong>: ${item.status} → ${item.action} ${item.why}`;
-    list.appendChild(li);
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    const statusClass = item.level === 'low' ? 'status-low' : item.level === 'high' ? 'status-high' : 'status-good';
+    let html = `<strong>${item.param}</strong>: <span class="${statusClass}">${item.status}</span><br>${item.action}. ${item.why}`;
+    if (item.dosagePer10k > 0) {
+      const amount = Math.max(1, Math.round((item.dosagePer10k * gallons) / 10000));
+      html += `<div class="dosage">Approx. add <strong>${amount} oz</strong> for your ${gallons.toLocaleString()}-gallon pool (adjust for product strength and retest).</div>`;
+    }
+    div.innerHTML = html;
+    list.appendChild(div);
   });
+
   document.getElementById('results').style.display = 'block';
   document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
 }
@@ -134,9 +208,12 @@ function showResults() {
 function resetTest() {
   document.getElementById('preview').innerHTML = '';
   document.getElementById('results').style.display = 'none';
+  document.getElementById('analyzing').style.display = 'none';
   document.getElementById('photo').value = '';
   document.getElementById('video').value = '';
 }
+
+updateHint();
 </script>
 </body>
 </html>
