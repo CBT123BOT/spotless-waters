@@ -13,8 +13,8 @@
     min-height: 100vh;
     padding: 20px 16px 40px;
   }
-  .container { max-width: 420px; margin: 0 auto; }
-  .header { text-align: center; margin-bottom: 24px; }
+  .container { max-width: 440px; margin: 0 auto; }
+  .header { text-align: center; margin-bottom: 20px; }
   .drop { font-size: 48px; line-height: 1; }
   h1 { font-size: 28px; font-weight: 700; margin-top: 4px; }
   .subtitle { font-size: 16px; opacity: 0.9; margin-top: 2px; }
@@ -22,7 +22,7 @@
   label { display: block; font-size: 14px; margin-bottom: 6px; opacity: 0.9; }
   select, input[type="number"] {
     width: 100%; padding: 14px; border-radius: 12px; border: none;
-    font-size: 16px; margin-bottom: 16px; background: rgba(255,255,255,0.15);
+    font-size: 16px; margin-bottom: 14px; background: rgba(255,255,255,0.15);
     color: white;
   }
   select {
@@ -45,16 +45,33 @@
 
   .hint {
     font-size: 13px; text-align: center; opacity: 0.85; line-height: 1.45;
-    margin-bottom: 20px; padding: 0 8px;
+    margin-bottom: 16px; padding: 0 8px;
   }
   .hint strong { color: #39ff14; }
 
-  #preview { margin: 16px 0; text-align: center; }
-  #preview img, #preview video { max-width: 100%; border-radius: 12px; }
+  #preview { margin: 12px 0; text-align: center; }
+  #preview img, #preview video { max-width: 100%; border-radius: 12px; max-height: 280px; object-fit: contain; }
+
+  #matching {
+    background: rgba(255,255,255,0.1); border-radius: 16px; padding: 16px;
+    margin-top: 8px; display: none;
+  }
+  #matching h2 { font-size: 17px; margin-bottom: 12px; }
+  .param-group { margin-bottom: 16px; }
+  .param-group label { font-weight: 600; margin-bottom: 8px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  .swatch {
+    flex: 1 1 auto; min-width: 58px; padding: 8px 6px; border-radius: 8px;
+    font-size: 12px; text-align: center; cursor: pointer; border: 2px solid transparent;
+    background: rgba(255,255,255,0.15); line-height: 1.3;
+  }
+  .swatch.selected { border-color: #39ff14; background: rgba(57,255,20,0.25); font-weight: 700; }
+  .swatch .val { display: block; font-size: 13px; font-weight: 600; }
+  .swatch .desc { display: block; font-size: 10px; opacity: 0.85; }
 
   #results {
     background: rgba(255,255,255,0.12); border-radius: 16px; padding: 20px;
-    margin-top: 8px; display: none;
+    margin-top: 12px; display: none;
   }
   #results h2 { font-size: 18px; margin-bottom: 14px; }
   .result-item {
@@ -70,6 +87,7 @@
   .note { font-size: 12px; opacity: 0.7; text-align: center; margin-top: 16px; }
   input[type="file"] { display: none; }
   #analyzing { display: none; text-align: center; margin: 16px 0; font-size: 15px; }
+  .analyze-btn { margin-top: 8px; width: 100%; }
 </style>
 </head>
 <body>
@@ -81,17 +99,23 @@
   </div>
 
   <label for="brand">Test Strip Brand</label>
-  <select id="brand" onchange="updateHint()">
+  <select id="brand">
     <option value="aquachek">AquaChek</option>
     <option value="taylor">Taylor</option>
     <option value="hth">HTH</option>
     <option value="lamotte">LaMotte</option>
     <option value="clorox">Clorox</option>
-    <option value="other">Other (unknown brand)</option>
+    <option value="other">Other / Generic</option>
+  </select>
+
+  <label for="stripType">Strip Type</label>
+  <select id="stripType">
+    <option value="7">7-way (Hardness + CYA)</option>
+    <option value="5">5-way (basic)</option>
   </select>
 
   <label for="gallons">Pool Volume (gallons)</label>
-  <input type="number" id="gallons" placeholder="e.g. 5000 (minimum 2500)" min="2500" step="50">
+  <input type="number" id="gallons" placeholder="e.g. 4000 (minimum 2500)" min="2500" step="50">
 
   <div class="buttons">
     <button id="photoBtn" onclick="document.getElementById('photo').click()">Take Photo</button>
@@ -99,33 +123,124 @@
   </div>
 
   <div class="hint" id="hint">
-    A clear photo of the strip next to the color chart works well for known brands. Hold steady in even light.
+    Take a clear photo of the strip next to the color chart, or a short video showing both. Then match each pad below.
   </div>
 
   <input type="file" id="photo" accept="image/*" capture="environment" onchange="handleCapture(this, 'image')">
   <input type="file" id="video" accept="video/*" capture="environment" onchange="handleCapture(this, 'video')">
 
-  <div id="analyzing">Analyzing strip…</div>
+  <div id="analyzing">Loading preview…</div>
   <div id="preview"></div>
+
+  <div id="matching">
+    <h2>Match each pad to the closest color</h2>
+    <div id="match-fields"></div>
+    <button class="analyze-btn" onclick="calculateResults()">Get Recommendations</button>
+  </div>
 
   <div id="results">
     <h2>Recommendations</h2>
     <div id="result-list"></div>
     <button class="new-test secondary" onclick="resetTest()">New Strip Test</button>
-    <div class="note">Demo analysis — real color matching coming in a future update.</div>
+    <div class="note">Match the pads on your strip to the chart on the bottle for best accuracy. Retest after adding chemicals.</div>
   </div>
 </div>
 
 <script>
-function updateHint() {
-  const brand = document.getElementById('brand').value;
-  const hint = document.getElementById('hint');
-  if (brand === 'other') {
-    hint.innerHTML = '<strong>Recommended:</strong> Use the <strong>5-Second Video</strong> and slowly show both the test strip <strong>and the full color chart</strong> in the same frame. Hold steady in even light.';
-  } else {
-    hint.innerHTML = 'A clear photo of the strip next to the color chart works well. Hold steady in even light.';
+const PARAMS = {
+  freeChlorine: {
+    name: 'Free Chlorine',
+    unit: 'ppm',
+    options: [
+      { val: 0, label: '0', desc: 'None', level: 'low' },
+      { val: 0.5, label: '0.5', desc: 'Very low', level: 'low' },
+      { val: 1, label: '1', desc: 'Low', level: 'low' },
+      { val: 3, label: '3', desc: 'Ideal', level: 'good' },
+      { val: 5, label: '5', desc: 'Good', level: 'good' },
+      { val: 10, label: '10', desc: 'High', level: 'high' },
+      { val: 20, label: '20+', desc: 'Very high', level: 'high' }
+    ],
+    ideal: '1–3 ppm (or 3–5 if CYA is high)',
+    lowAction: 'Add chlorine',
+    highAction: 'Wait or dilute; do not add more',
+    why: 'Keeps water sanitized and helps prevent algae.',
+    dosagePer10k: 16 // oz of typical liquid chlorine to raise ~1 ppm (approximate)
+  },
+  pH: {
+    name: 'pH',
+    unit: '',
+    options: [
+      { val: 6.2, label: '6.2', desc: 'Very low', level: 'low' },
+      { val: 6.8, label: '6.8', desc: 'Low', level: 'low' },
+      { val: 7.2, label: '7.2', desc: 'Ideal', level: 'good' },
+      { val: 7.6, label: '7.6', desc: 'Good', level: 'good' },
+      { val: 7.8, label: '7.8', desc: 'Slightly high', level: 'high' },
+      { val: 8.4, label: '8.4+', desc: 'High', level: 'high' }
+    ],
+    ideal: '7.2–7.6',
+    lowAction: 'Add soda ash (pH Up)',
+    highAction: 'Add muriatic acid or pH Down',
+    why: 'Improves chlorine effectiveness and swimmer comfort.',
+    dosagePer10k: 8
+  },
+  alkalinity: {
+    name: 'Total Alkalinity',
+    unit: 'ppm',
+    options: [
+      { val: 0, label: '0', desc: 'Very low', level: 'low' },
+      { val: 40, label: '40', desc: 'Low', level: 'low' },
+      { val: 80, label: '80', desc: 'Ideal', level: 'good' },
+      { val: 120, label: '120', desc: 'Good', level: 'good' },
+      { val: 180, label: '180', desc: 'High', level: 'high' },
+      { val: 240, label: '240+', desc: 'Very high', level: 'high' }
+    ],
+    ideal: '80–120 ppm',
+    lowAction: 'Add baking soda (alkalinity increaser)',
+    highAction: 'Add acid carefully',
+    why: 'Buffers pH and keeps it stable.',
+    dosagePer10k: 20
+  },
+  hardness: {
+    name: 'Total Hardness',
+    unit: 'ppm',
+    options: [
+      { val: 0, label: '0', desc: 'Very low', level: 'low' },
+      { val: 100, label: '100', desc: 'Low', level: 'low' },
+      { val: 250, label: '250', desc: 'Ideal', level: 'good' },
+      { val: 400, label: '400', desc: 'Good', level: 'good' },
+      { val: 600, label: '600', desc: 'High', level: 'high' },
+      { val: 1000, label: '1000+', desc: 'Very high', level: 'high' }
+    ],
+    ideal: '200–400 ppm',
+    lowAction: 'Add calcium chloride (hardness increaser)',
+    highAction: 'Partial drain and refill',
+    why: 'Protects surfaces and equipment from corrosion or scale.',
+    dosagePer10k: 16
+  },
+  cya: {
+    name: 'Cyanuric Acid (Stabilizer)',
+    unit: 'ppm',
+    options: [
+      { val: 0, label: '0', desc: 'None', level: 'low' },
+      { val: 30, label: '30–50', desc: 'Ideal', level: 'good' },
+      { val: 100, label: '100', desc: 'High', level: 'high' },
+      { val: 150, label: '150', desc: 'Very high', level: 'high' },
+      { val: 300, label: '300+', desc: 'Extreme', level: 'high' }
+    ],
+    ideal: '30–50 ppm',
+    lowAction: 'Add cyanuric acid / stabilizer',
+    highAction: 'Partial drain and refill',
+    why: 'Protects chlorine from sunlight. Too high reduces chlorine effectiveness.',
+    dosagePer10k: 13
   }
-}
+};
+
+const STRIP_PARAMS = {
+  '7': ['hardness', 'freeChlorine', 'pH', 'alkalinity', 'cya'],
+  '5': ['freeChlorine', 'pH', 'alkalinity']
+};
+
+let currentSelections = {};
 
 function handleCapture(input, type) {
   const file = input.files[0];
@@ -134,19 +249,10 @@ function handleCapture(input, type) {
   const gallonsInput = document.getElementById('gallons');
   const gallons = Number(gallonsInput.value);
   if (!gallons || gallons < 2500) {
-    alert('Please enter your pool volume first (minimum 2,500 gallons) so dosage amounts can be calculated.');
+    alert('Please enter your pool volume first (minimum 2,500 gallons).');
     gallonsInput.focus();
     input.value = '';
     return;
-  }
-
-  const brand = document.getElementById('brand').value;
-  if (brand === 'other' && type === 'image') {
-    const proceed = confirm('For unknown brands, a short video that includes both the strip and the color chart usually gives better results. Continue with photo anyway?');
-    if (!proceed) {
-      input.value = '';
-      return;
-    }
   }
 
   const preview = document.getElementById('preview');
@@ -155,6 +261,7 @@ function handleCapture(input, type) {
 
   document.getElementById('analyzing').style.display = 'block';
   document.getElementById('results').style.display = 'none';
+  document.getElementById('matching').style.display = 'none';
 
   if (type === 'image') {
     const img = document.createElement('img');
@@ -166,37 +273,86 @@ function handleCapture(input, type) {
     video.controls = true;
     video.autoplay = true;
     video.muted = true;
+    video.playsInline = true;
     preview.appendChild(video);
   }
 
-  // Simulate brief analysis delay
   setTimeout(() => {
     document.getElementById('analyzing').style.display = 'none';
-    showResults(gallons);
-  }, 800);
+    buildMatchingUI();
+    document.getElementById('matching').style.display = 'block';
+    document.getElementById('matching').scrollIntoView({ behavior: 'smooth' });
+  }, 400);
 }
 
-function showResults(gallons) {
+function buildMatchingUI() {
+  const stripType = document.getElementById('stripType').value;
+  const keys = STRIP_PARAMS[stripType] || STRIP_PARAMS['7'];
+  const container = document.getElementById('match-fields');
+  container.innerHTML = '';
+  currentSelections = {};
+
+  keys.forEach(key => {
+    const p = PARAMS[key];
+    if (!p) return;
+    const group = document.createElement('div');
+    group.className = 'param-group';
+    group.innerHTML = `<label>${p.name}</label><div class="swatches" data-param="${key}"></div>`;
+    const swatches = group.querySelector('.swatches');
+
+    p.options.forEach((opt, idx) => {
+      const btn = document.createElement('div');
+      btn.className = 'swatch';
+      btn.innerHTML = `<span class="val">${opt.label}</span><span class="desc">${opt.desc}</span>`;
+      btn.onclick = () => selectSwatch(key, opt, btn, swatches);
+      if (idx === Math.floor(p.options.length / 2)) {
+        // pre-select middle as starting point
+        btn.classList.add('selected');
+        currentSelections[key] = opt;
+      }
+      swatches.appendChild(btn);
+    });
+
+    container.appendChild(group);
+  });
+}
+
+function selectSwatch(key, opt, btn, parent) {
+  parent.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+  btn.classList.add('selected');
+  currentSelections[key] = opt;
+}
+
+function calculateResults() {
+  const gallons = Number(document.getElementById('gallons').value) || 4000;
+  const stripType = document.getElementById('stripType').value;
+  const keys = STRIP_PARAMS[stripType] || STRIP_PARAMS['7'];
   const list = document.getElementById('result-list');
   list.innerHTML = '';
 
-  // Demo analysis — replace with real vision later
-  const demo = [
-    { param: 'Free Chlorine', status: 'Low (~0.5–1 ppm)', action: 'Add chlorine', why: 'Keeps water sanitized and helps prevent algae.', dosagePer10k: 16, level: 'low' },
-    { param: 'pH', status: 'Slightly high (~7.8)', action: 'Add acid (muriatic or pH Down)', why: 'Improves chlorine effectiveness and comfort.', dosagePer10k: 8, level: 'high' },
-    { param: 'Total Alkalinity', status: 'Good (~100 ppm)', action: 'No action needed', why: 'Stable buffering range.', dosagePer10k: 0, level: 'good' },
-    { param: 'Hardness', status: 'Good (~250 ppm)', action: 'No action needed', why: 'Protects surfaces and equipment.', dosagePer10k: 0, level: 'good' }
-  ];
+  keys.forEach(key => {
+    const p = PARAMS[key];
+    const sel = currentSelections[key];
+    if (!p || !sel) return;
 
-  demo.forEach(item => {
     const div = document.createElement('div');
     div.className = 'result-item';
-    const statusClass = item.level === 'low' ? 'status-low' : item.level === 'high' ? 'status-high' : 'status-good';
-    let html = `<strong>${item.param}</strong>: <span class="${statusClass}">${item.status}</span><br>${item.action}. ${item.why}`;
-    if (item.dosagePer10k > 0) {
-      const amount = Math.max(1, Math.round((item.dosagePer10k * gallons) / 10000));
-      html += `<div class="dosage">Approx. add <strong>${amount} oz</strong> for your ${gallons.toLocaleString()}-gallon pool (adjust for product strength and retest).</div>`;
+    const statusClass = sel.level === 'low' ? 'status-low' : sel.level === 'high' ? 'status-high' : 'status-good';
+    const statusText = `${sel.desc} (${sel.label}${p.unit ? ' ' + p.unit : ''})`;
+
+    let action = 'No action needed';
+    if (sel.level === 'low') action = p.lowAction;
+    if (sel.level === 'high') action = p.highAction;
+
+    let html = `<strong>${p.name}</strong>: <span class="${statusClass}">${statusText}</span><br>${action}. ${p.why}`;
+
+    if (sel.level !== 'good' && p.dosagePer10k > 0) {
+      // Rough dosage: scale by how far from ideal (simplified)
+      const factor = sel.level === 'low' ? 1 : 0.5;
+      const amount = Math.max(1, Math.round((p.dosagePer10k * gallons / 10000) * factor));
+      html += `<div class="dosage">Approx. add <strong>${amount} oz</strong> for your ${gallons.toLocaleString()}-gallon pool (adjust for product strength and retest after 2–4 hours).</div>`;
     }
+
     div.innerHTML = html;
     list.appendChild(div);
   });
@@ -208,12 +364,12 @@ function showResults(gallons) {
 function resetTest() {
   document.getElementById('preview').innerHTML = '';
   document.getElementById('results').style.display = 'none';
+  document.getElementById('matching').style.display = 'none';
   document.getElementById('analyzing').style.display = 'none';
   document.getElementById('photo').value = '';
   document.getElementById('video').value = '';
+  currentSelections = {};
 }
-
-updateHint();
 </script>
 </body>
 </html>
